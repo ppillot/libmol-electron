@@ -51,7 +51,8 @@ let mainConfig = {
   resolve: {
     extensions: ['.js', '.json', '.node'],
     modules: [
-      path.join(__dirname, 'app/node_modules')
+      path.join(__dirname, 'app/node_modules'),
+      path.join(__dirname, '..', 'src')
     ]
   },
   target: 'electron-main'
