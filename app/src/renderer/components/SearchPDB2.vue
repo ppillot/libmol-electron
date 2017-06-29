@@ -1,31 +1,28 @@
 <template>
-  <form-item :label="$t('ui.search_libmol_label')"
+  <form-item :label="$t('ui.search_pdb_label')"
     @blur="activate(false)">
     <div class="input-text" >
       <input type="text"
         spellcheck="false"
         :value="state"
-        placeholder="Mot clé"
+        placeholder="Keyword"
         @keyup="getSuggestion"
         @focus="activate(true)"
       >
       <span v-if="this.suggestions.length > 0" class="suggest-counter">
-        {{ suggestions.length }}
+        {{ suggestions.length }}{{(suggestions.length >= 50) ? '+' : ''}}
       </span>
       <div class="suggest" :style="suggestStyles" v-if="isFocused">
         <ul>
-          <li v-for="(suggestion, index) in suggestions" @click="handleSelect(index)">
-            {{ suggestion.value }}
+          <li :title="suggestion.value" v-for="(suggestion, index) in suggestions" @click="handleSelect(index)">
+            <div class="pdb-title">{{ suggestion.value }}</div>
+            <div class="pdb-code">
+                {{ suggestion.molId }}
+            </div>
           </li>
         </ul>
       </div>
     </div>
-    <!--<el-autocomplete
-      v-model="state"
-      :fetch-suggestions="debouncedQuery"
-      placeholder="Mot clé"
-      @select="handleSelect">
-    </el-autocomplete>-->
   </form-item>
 </template>
 
@@ -35,7 +32,7 @@ import debounce from 'throttle-debounce/debounce'
 import FormItem from './FormItem'
 
 export default {
-  name: 'SearchLibmol',
+  name: 'SearchPdb',
   components: {
     FormItem
   },
@@ -87,7 +84,7 @@ export default {
       this.debouncedQuery(this.state)
     },
     debouncedQuery: debounce(
-      300,
+      600,
       function (q, c) {
         this.querySearchAsync(q, c)
       }),
@@ -97,41 +94,70 @@ export default {
         this.suggestions.splice(0)
         return
       }
-      const path = (process.env.NODE_ENV !== 'production') ? 'api/recherche.php' : 'https://libmol.org/api/recherche.php'
+      /* var xml = `<orgPdbQuery>
+        <queryType>org.pdb.query.simple.AdvancedKeywordQuery</queryType>
+        <description>Text Search</description>
+        <keywords>${queryString}</keywords>
+      </orgPdbQuery>` */
+      // var self = this
+      /* axios.post('http://www.rcsb.org/pdb/rest/search',
+        xml
+      , {
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'}
+      }
+      ) */
+      const path = (process.env.NODE_ENV !== 'production') ? 'api/jsmol.php' : 'https://libmol.org/api/jsmol.php'
 
-      /*  axios.get(path, {
-        params: {
-          txt: queryString
-        }
-      })
-      .then(function (response) {
-        const rep = response.data.map(item => (
-          { value: item.label,
-            file: ((item.file.indexOf('.cif') > -1) || (item.file.indexOf('.mmtf') > -1) || (item.file.indexOf('.sdf') > -1))
-            ? 'static/mol/' + item.file
-            : `static/mol/pdb/${item.file}.pdb`,
-            molId: item.molId }))
-        cb(rep)
-      })
-      .catch(function (error) {
-        console.log(error)
-      }) */
       window.fetch(path, {
         method: 'POST',
         body: JSON.stringify({
-          txt: queryString
+          call: 'getInfoFromDatabase',
+          database: '=',
+          query: queryString
         })
       })
-      .then(response => {
-        return response.json()
+      .then(function (response) {
+        return response.text()
       })
-      .then(data => {
-        this.suggestions = data.map(item => ({ value: item.label,
-          file: ((item.file.indexOf('.cif') > -1) || (item.file.indexOf('.mmtf') > -1) || (item.file.indexOf('.sdf') > -1))
-            ? 'static/mol/' + item.file
-            : `static/mol/pdb/${item.file}.pdb`,
-          molId: item.molId }))
-        // cb(rep)
+      /* axios.get('https://libmol.org/api/jsmol.php',
+        {
+          params: {
+            call: 'getInfoFromDatabase',
+            database: '=',
+            query: queryString
+          }
+        }
+      )
+      /* .then(function (response) {
+        console.log(response)
+        if (response.data.length > 0) {
+          let listPdbId = response.data.split('\n').join(',')
+          return axios.get('http://www.rcsb.org/pdb/rest/customReport', {
+            params: {
+              pdbids: listPdbId,
+              customReportColumns: 'structureId,structureTitle'
+            }
+          })
+        } else {
+          // self.$message.error(self.$t('messages.no_record_found'))
+          throw new Error(self.$t('messages.no_record_found'))
+        }
+      }) */
+      .then(response => {
+        /* global DOMParser */
+        const parser = new DOMParser()
+        const xmlDocument = parser.parseFromString(response, 'application/xml')
+        const recordNodelist = xmlDocument.getElementsByTagName('record')
+
+        let rep = []
+        for (var item of recordNodelist) {
+          rep.push({
+            value: item.children[1].textContent,
+            file: 'rcsb://' + item.children[0].textContent,
+            molId: item.children[0].textContent
+          })
+        }
+        this.suggestions = rep
       })
       .catch(function (error) {
         console.log(error)
@@ -174,6 +200,17 @@ export default {
     padding: 2px 5px;
     min-width: initial;
   }
+
+  .pdb-code {
+    font-size: 0.8em;
+    font-weight: bold;
+    color: #fff;
+    background: #1D8CE0;
+    border-radius: 2px;
+    min-width: 3em;
+    text-align: center;
+    line-height: 1.2em;
+  }
   
   .suggest {
     position: fixed;
@@ -208,10 +245,22 @@ export default {
     color: #8492a6;
     box-sizing: border-box;
     line-height: 1.5em;
+    display: inline-flex;
+    align-items: center;
   }
   .suggest ul li:hover {
     background: #20A0FF;
     color: #FFF;
+  }
+  .suggest ul li:hover .pdb-code {
+      background: white;
+      color: #1D8CE0;
+  }
+  .pdb-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>
 

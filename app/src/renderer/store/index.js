@@ -6,10 +6,12 @@ import {Stage, Selection, ColormakerRegistry, download, Vector3, Vector2, setDeb
 /* eslint-disable-next-line */
 // let NGL = () => import('ngl') /* eslint-disable-line */
 import debounce from 'throttle-debounce/debounce'
-import help from '../utils/help'
-import {hover} from '../utils/hover'
-import {measureDistance} from '../utils/distance'
-import {loadFile} from '../utils/loadfile'
+import Screenfull from 'screenfull'
+import help from 'utils/help'
+import {hover} from 'utils/hover'
+import {measureDistance} from 'utils/distance'
+import {loadFile} from 'utils/loadfile'
+import {byres} from 'utils/colors'
 
 let NGL = {Stage, Selection, ColormakerRegistry, download, Vector2, Vector3, setDebug}
 Vue.use(Vuex)
@@ -52,10 +54,25 @@ function removeSelectionFromRepresentations (newAtomSet, skipReprIndex, overlay 
     if (repr.atomSet.intersects(newAtomSet)) {
       repr.atomSet.difference(newAtomSet)
       let sele = repr.displayedAtomSet.difference(newAtomSet)
+
       // console.log(i, sele)
       stage.compList[0].reprList[repr.index].setSelection(sele.toSeleString())
     }
   }
+}
+
+/**
+ * @description update a representation based on its name, with a parameter object
+ *
+ * @param {array} reprNames name of the representation to update (e.g. 'spacefill')
+ * @param {object} parameters object with new parameters (e.g. {multipleBond: symmetric})
+ */
+function updateRepresentationParameters (reprNames, parameters) {
+  representationsList.forEach(repr => {
+    if (reprNames.includes(repr.display)) {
+      stage.compList[0].reprList[repr.index].setParameters(parameters)
+    }
+  })
 }
 
 function removeSelectionFromColorSchemes (atomSet, skipColorSchemeIndex) {
@@ -103,7 +120,15 @@ function getColorFromSelection (as = currentSelectionAtomSet) {
 }
 
 function updateGlobalColorScheme () {
-  globalColorScheme = NGL.ColormakerRegistry.addSelectionScheme(tabColorScheme)
+  globalColorScheme = NGL.ColormakerRegistry.addSelectionScheme(tabColorScheme.map(
+    (val) => {
+      if (val[0] === 'resname') {
+        return [byres, val[1]]
+      } else {
+        return val
+      }
+    }
+  ))
 }
 
 function updateRepresentationColor () {
@@ -158,6 +183,7 @@ function highlightRes (component) {
       sele: 'none',
       color: 'limegreen',
       opacity: 0.2,
+      scale: 1.2,
       name: 'highlight'
     })
   return function (sel) {
@@ -297,6 +323,7 @@ var vuex = new Vuex.Store({
     selection: 'all',
     display: 'licorice',
     color: 'element',
+    multipleBond: false,
     atomHovered: {
       symbol: '',
       atomname: '',
@@ -392,6 +419,9 @@ var vuex = new Vuex.Store({
     setFullscreen (state, isFullscreenOn) {
       state.fullscreen = isFullscreenOn
     },
+    setMultipleBond (state, val) {
+      state.multipleBond = val
+    },
     isAtomHovered (state, isDisplayed) {
       state.isAtomHovered = isDisplayed
     },
@@ -482,7 +512,7 @@ var vuex = new Vuex.Store({
       }
     },
     toggleFullscreen (context) {
-      // context.commit('setFullscreen', !Screenfull.isFullscreen)
+      context.commit('setFullscreen', Screenfull.isFullscreen)
     },
     screenCapture (context) {
       // from NGL example gui
@@ -508,9 +538,10 @@ var vuex = new Vuex.Store({
     },
     createNewStage (context, options) {
       stage = new NGL.Stage(options.id, { backgroundColor: 'white' })
-      loadNewFile = loadFile(stage)
+      loadNewFile = loadFile(stage, context)
+      stage.mouseControls.remove('hoverPick')
       stage.signals.hovered.add(hover(context))
-      context.dispatch('loadNewFile', { file: 'rcsb://1crn', value: 'Crambin - 1CRN' })
+      context.dispatch('loadNewFile', { file: 'rcsb://1crn', value: 'Crambin' })
 
       let resize = resizeStage(stage)
       window.onresize = debounce(100, resize)
@@ -531,11 +562,11 @@ var vuex = new Vuex.Store({
             color: 'element',
             sele: 'all',
             atomSet: structure.getAtomSet().clone(),
-            displayedAtomSet: structure.getAtomSet().clone(),
+            displayedAtomSet: structure.getAtomSet(new NGL.Selection('not water')).clone(),
             index: component.reprList.length - 1
           }]
           currentSelectionAtomSet = structure.getAtomSet().clone()
-          currentlyDisplayedAtomSet = structure.getAtomSet().clone()
+          currentlyDisplayedAtomSet = representationsList[0].displayedAtomSet.clone()
           wholeAtomSet = structure.getAtomSet().clone()
           tabColorAtomSet = [structure.getAtomSet().clone()]
 
@@ -594,10 +625,10 @@ var vuex = new Vuex.Store({
       // if selection is of mixed type (not just polymer) and display is either
       // cartoon or backbone, we need to limit it to the polymer selection
       if (displayType === 'backbone' || displayType === 'cartoon') {
-        atomSet.intersection(predefined.getAtomSet('protein')) // .intersection(predefined.getAtomSet('nucleic'))
+        atomSet.intersection(predefined.getAtomSet('protein').clone().union(predefined.getAtomSet('nucleic')))
       }
 
-      let dAtomSet = atomSet.intersection(currentlyDisplayedAtomSet)
+      let dAtomSet = atomSet.clone().intersection(currentlyDisplayedAtomSet)
 
       if (num === -1) {
         // new representation
@@ -605,8 +636,10 @@ var vuex = new Vuex.Store({
         stage.compList[0].addRepresentation(displayType,
           {
             sele: seleString,
+            aspectRatio: 2.1,
+            scale: (displayType === 'spacefill') ? 1.0 : 1.2,
             color: globalColorScheme,
-            multipleBond: (context.state.mol.noSequence) ? 'symmetric' : 'off'
+            multipleBond: (context.state.mol.noSequence || context.state.multipleBond) ? 'symmetric' : 'off'
           })
         representationsList.push({
           display: displayType,
@@ -660,7 +693,7 @@ var vuex = new Vuex.Store({
       // its sidechain only
 
       // is there a ribbon or a backbone representation that includes some
-      // of the residues of the current selection
+      // of the residues of the current selection ?
       let atomsToDisplay = representationsList.reduce((acc, representation, index) => {
         if (['cartoon', 'backbone'].includes(representation.display) && representation.atomSet.intersects(currentSelectionAtomSet)) {
           return acc.difference(representation.atomSet)
@@ -900,6 +933,12 @@ var vuex = new Vuex.Store({
         distance.switchColor(params.backgroundColor)
       }
     },
+    setRepresentationParameters (context, params) {
+      if (params.multipleBond !== undefined) {
+        updateRepresentationParameters(['licorice', 'ball+stick'], {multipleBond: params.multipleBond})
+        context.commit('setMultipleBond', params.multipleBond === 'symmetric')
+      }
+    },
     sequenceSelected (context, tabSelectedResidues) {
       // has the selection started by a selected residue ?
       let isToBeSelected = (context.state.selected[tabSelectedResidues[0]] === false)
@@ -957,8 +996,8 @@ var vuex = new Vuex.Store({
           // set cursor style
           stage.viewer.container.style.cursor = 'default'
           // set signal picking atom
-          stage.signals.clicked.removeAll()
-          stage.signals.hovered.clear(distance.hoverDistance)
+          stage.signals.clicked.remove(distance.clickDistance)
+          stage.signals.hovered.remove(distance.hoverDistance)
           // set state to not measuring
           context.commit('isMeasuringDistances', false)
           // disable distance highlights

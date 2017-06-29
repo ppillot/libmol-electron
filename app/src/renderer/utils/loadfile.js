@@ -17,7 +17,7 @@ function getChainColors (chains, structure) {
   return chainColors
 }
 
-function loadFile (stage) {
+function loadFile (stage, context) {
   function newFile (newFile) {
     stage.removeAllComponents()
     return stage.loadFile(newFile.file, {assembly: 'AU'})
@@ -91,7 +91,12 @@ function loadFile (stage) {
       let noSequence = (structure.residueStore.count / structure.modelStore.count <= 1)
 
       component.setSelection('/0')
-      component.addRepresentation('ball+stick', {multipleBond: (noSequence) ? 'symmetric' : 'off'})
+      component.addRepresentation('ball+stick', {
+        multipleBond: (noSequence || context.state.multipleBond) ? 'symmetric' : 'off',
+        sele: 'not water',
+        aspectRatio: 2.1,
+        scale: 1.2
+      })
       stage.autoView()
 
       return Promise.resolve({molTypes, chains, atoms, elements, residues, sstruc, selected, noSequence, component})
