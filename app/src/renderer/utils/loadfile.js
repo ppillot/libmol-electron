@@ -20,7 +20,11 @@ function getChainColors (chains, structure) {
 function loadFile (stage, context) {
   function newFile (newFile) {
     stage.removeAllComponents()
-    return stage.loadFile(newFile.file, {assembly: 'AU'})
+    let params = {assembly: 'AU'}
+    if (newFile.hasOwnProperty('ext')) {
+      Object.assign(params, {ext: newFile.ext})
+    }
+    return stage.loadFile(newFile.file, params)
     .then((component) => { // let's get the structure property from the structureComponent object returned by NGL's promise
       const structure = component.structure
 
