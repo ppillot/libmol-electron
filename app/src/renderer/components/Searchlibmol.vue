@@ -20,12 +20,6 @@
         </ul>
       </div>
     </div>
-    <!--<el-autocomplete
-      v-model="state"
-      :fetch-suggestions="debouncedQuery"
-      placeholder="Mot clé"
-      @select="handleSelect">
-    </el-autocomplete>-->
   </form-item>
 </template>
 
@@ -36,17 +30,10 @@ import FormItem from './FormItem'
 import Datastore from 'nedb'
 
 const molecules = new Datastore({
-  filename: 'api/datastore/molecule.json'
+  filename: 'app/src/renderer/api/datastore/molecule.nedb'
 })
 molecules.loadDatabase(err => {
   console.log(err)
-})
-molecules.count({}, function (err, count) {
-  if (err) {
-    console.log(err)
-  }
-  console.log(count)
-  // count equals to 4
 })
 
 export default {
@@ -115,11 +102,10 @@ export default {
       // const path = (process.env.NODE_ENV !== 'production') ? 'api/recherche.php' : 'https://libmol.org/api/recherche.php'
 
       const queryRegExp = new RegExp(queryString, 'gi')
-      molecules.find({ TITRE: queryRegExp }, function (err, docs) {
+      molecules.find({ TITRE: queryRegExp }, (err, docs) => {
         if (err) {
           console.log('Error in libmol search', err)
         }
-        console.log(queryRegExp, molecules, docs)
         let rep = []
         docs.forEach(d => {
           rep.push({
