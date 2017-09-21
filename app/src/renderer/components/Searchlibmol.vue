@@ -14,7 +14,7 @@
       </span>
       <div class="suggest" :style="suggestStyles" v-if="isFocused">
         <ul>
-          <li v-for="(suggestion, index) in suggestions" @click="handleSelect(index)">
+          <li v-for="(suggestion, index) in suggestions" @click="handleSelect(index)" :key="index">
             {{ suggestion.value }}
           </li>
         </ul>
@@ -33,6 +33,21 @@
 // import axios from 'axios'
 import debounce from 'throttle-debounce/debounce'
 import FormItem from './FormItem'
+import Datastore from 'nedb'
+
+const molecules = new Datastore({
+  filename: 'api/datastore/molecule.json'
+})
+molecules.loadDatabase(err => {
+  console.log(err)
+})
+molecules.count({}, function (err, count) {
+  if (err) {
+    console.log(err)
+  }
+  console.log(count)
+  // count equals to 4
+})
 
 export default {
   name: 'SearchLibmol',
@@ -97,7 +112,24 @@ export default {
         this.suggestions.splice(0)
         return
       }
-      const path = (process.env.NODE_ENV !== 'production') ? 'api/recherche.php' : 'https://libmol.org/api/recherche.php'
+      // const path = (process.env.NODE_ENV !== 'production') ? 'api/recherche.php' : 'https://libmol.org/api/recherche.php'
+
+      const queryRegExp = new RegExp(queryString, 'gi')
+      molecules.find({ TITRE: queryRegExp }, function (err, docs) {
+        if (err) {
+          console.log('Error in libmol search', err)
+        }
+        console.log(queryRegExp, molecules, docs)
+        let rep = []
+        docs.forEach(d => {
+          rep.push({
+            value: d.TITRE,
+            file: d.FICHIER,
+            molId: d.ID
+          })
+        })
+        this.suggestions = rep
+      })
 
       /*  axios.get(path, {
         params: {
@@ -116,7 +148,7 @@ export default {
       .catch(function (error) {
         console.log(error)
       }) */
-      window.fetch(path, {
+      /* window.fetch(path, {
         method: 'POST',
         body: JSON.stringify({
           txt: queryString
@@ -135,7 +167,7 @@ export default {
       })
       .catch(function (error) {
         console.log(error)
-      })
+      }) */
     },
     handleSelect (index) {
       this.$store.dispatch('loadNewFile', this.suggestions[index])

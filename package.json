@@ -1,5 +1,6 @@
 {
   "name": "libmol",
+  "productName": "Libmol",
   "version": "0.0.0",
   "description": "Molecular visualization made easy",
   "scripts": {

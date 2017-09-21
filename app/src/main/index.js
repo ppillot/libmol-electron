@@ -29,15 +29,7 @@ const template = [
             }
           })
         }
-      },
-      {role: 'redo'},
-      {type: 'separator'},
-      {role: 'cut'},
-      {role: 'copy'},
-      {role: 'paste'},
-      {role: 'pasteandmatchstyle'},
-      {role: 'delete'},
-      {role: 'selectall'}
+      }
     ]
   },
   {
@@ -53,7 +45,7 @@ const template = [
       {role: 'minimize'},
       {role: 'close'}
     ]
-  },
+  } /* ,
   {
     role: 'help',
     submenu: [
@@ -62,7 +54,7 @@ const template = [
         click () { require('electron').shell.openExternal('https://electron.atom.io') }
       }
     ]
-  }
+  } */
 ]
 
 if (process.platform === 'darwin') {
@@ -80,18 +72,6 @@ if (process.platform === 'darwin') {
       {role: 'quit'}
     ]
   })
-
-  // Edit menu
-  template[1].submenu.push(
-    {type: 'separator'},
-    {
-      label: 'Speech',
-      submenu: [
-        {role: 'startspeaking'},
-        {role: 'stopspeaking'}
-      ]
-    }
-  )
 
   // Window menu
   template[3].submenu = [
